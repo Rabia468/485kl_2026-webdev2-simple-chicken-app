@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion des Fermes</title>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .card { border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 5px; }
+        .btn { padding: 5px 10px; cursor: pointer; margin: 5px; border: none; border-radius: 5px; }
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-danger { background-color: #dc3545; color: white; }
+        .btn-disabled { background-color: #ccc; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+<div x-data="farmApp()" x-init="fetchFarms()">
+    <h2>🌾 Liste des Fermes</h2>
+    
+    <!-- Formulaire d'ajout d'une ferme -->
+    <input type="text" x-model="newFarmName" placeholder="Nom de la ferme" />
+    <button class="btn btn-primary" @click="addFarm()">Ajouter une ferme</button>
+
+    <!-- Liste des fermes -->
+    <div x-show="farms.length > 0">
+        <template x-for="farm in farms" :key="farm.id">
+            <div class="card">
+                <strong x-text="farm.name"></strong>
+                <button class="btn btn-primary" @click="fetchChickens(farm.id, 0)">Voir les poules</button>
+                <button class="btn btn-danger" @click="deleteFarm(farm.id)">🗑 Supprimer</button>
+            </div>
+        </template>
+    </div>
+    
+    <!-- Section des poules d'une ferme sélectionnée -->
+    <div x-show="selectedFarm">
+        <h3>🐔 Poules de <span x-text="selectedFarm.name"></span></h3>
+
+        <!-- Formulaire d'ajout de poule -->
+        <input type="text" x-model="newChickenName" placeholder="Nom de la poule" />
+        <input type="number" x-model="newChickenAge" placeholder="Âge" min="1" />
+        <input type="number" step="0.1" x-model="newChickenWeight" placeholder="Poids (kg)" min="0.5" />
+        <button class="btn btn-primary" @click="addChicken(selectedFarm.id)">Ajouter une poule</button>
+
+        <!-- Liste paginée des poules -->
+        <ul>
+            <template x-for="chicken in chickens" :key="chicken.id">
+                <li>🐥 <strong x-text="chicken.name"></strong> - Âge: <span x-text="chicken.age"></span> ans - Poids: <span x-text="chicken.weight"></span> kg</li>
+            </template>
+        </ul>
+
+        <!-- Pagination -->
+        <div>
+            <button class="btn" :class="{ 'btn-disabled': pageNumber === 0 }" @click="fetchChickens(selectedFarm.id, pageNumber - 1)">⬅ Précédent</button>
+            Page <span x-text="pageNumber + 1"></span> / <span x-text="totalPages"></span>
+            <button class="btn" :class="{ 'btn-disabled': pageNumber >= totalPages - 1 }" @click="fetchChickens(selectedFarm.id, pageNumber + 1)">Suivant ➡</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function farmApp() {
+    return {
+        farms: [],
+        selectedFarm: null,
+        chickens: [],
+        newFarmName: "",
+        newChickenName: "",
+        newChickenAge: "",
+        newChickenWeight: "",
+        
+        // Pagination
+        pageNumber: 0,
+        totalPages: 1,
+        pageSize: 3, // Modifier selon le besoin
+
+        // Récupérer les fermes
+        async fetchFarms() {
+            const response = await fetch('/api/farms');
+            this.farms = await response.json();
+        },
+
+        // Ajouter une ferme
+        async addFarm() {
+            if (!this.newFarmName) return;
+            const response = await fetch('/api/farms', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: this.newFarmName })
+            });
+            if (response.ok) {
+                this.newFarmName = "";
+                this.fetchFarms();
+            }
+        },
+
+        // Supprimer une ferme
+        async deleteFarm(id) {
+            if (!confirm("Supprimer cette ferme ?")) return;
+            const response = await fetch(`/api/farms/${id}`, { method: 'DELETE' });
+            if (response.ok) {
+                this.selectedFarm = null;
+                this.chickens = [];
+                this.fetchFarms();
+            }
+        },
+
+        // Récupérer les poules d'une ferme avec pagination
+        async fetchChickens(farmId, page) {
+            if (page < 0 || (this.totalPages && page >= this.totalPages)) return;
+
+            const response = await fetch(`/api/chickens/farm/${farmId}?page=${page}&size=${this.pageSize}`);
+            const data = await response.json();
+
+            this.chickens = data.content;
+            this.pageNumber = data.pageable.pageNumber;
+            this.totalPages = data.totalPages;
+            this.selectedFarm = this.farms.find(farm => farm.id === farmId);
+        },
+
+        // Ajouter une poule
+        async addChicken(farmId) {
+            if (!this.newChickenName || !this.newChickenAge || !this.newChickenWeight) return;
+            const response = await fetch(`/api/chickens/farm/${farmId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: this.newChickenName,
+                    age: this.newChickenAge,
+                    weight: this.newChickenWeight
+                })
+            });
+            if (response.ok) {
+                this.newChickenName = "";
+                this.newChickenAge = "";
+                this.newChickenWeight = "";
+                this.fetchChickens(farmId, this.pageNumber);
+            }
+        }
+    }
+}
+</script>
+
+</body>
+</html>
