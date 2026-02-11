@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:13
+    container_name: postgres-db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: counterdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - counter-net
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: springboot-backend
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/counterdb
+      SPRING_DATASOURCE_USERNAME: user
+      SPRING_DATASOURCE_PASSWORD: password
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    networks:
+      - counter-net
+
+#  frontend:
+#    image: nginx:alpine
+#    container_name: frontend
+#    volumes:
+#      - ./frontend:/usr/share/nginx/html
+#    ports:
+#      - "80:80"
+#    networks:
+#      - counter-net
+
+volumes:
+  pgdata:
+
+networks:
+  counter-net:
+    driver: bridge
